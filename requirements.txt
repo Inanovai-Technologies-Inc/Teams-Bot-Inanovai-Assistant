@@ -1,0 +1,15 @@
+# Teams / Bot Framework layer
+botbuilder-core>=4.16.0,<5.0.0
+botbuilder-integration-aiohttp>=4.16.0,<5.0.0
+
+# Web server
+aiohttp>=3.9.0
+
+# Config
+python-dotenv>=1.0.0
+
+# Agent (Stage 3)
+openai>=1.0.0
+
+# Production web server (Azure App Service)
+gunicorn>=21.2.0

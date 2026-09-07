@@ -1,0 +1,35 @@
+{
+  "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.17/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.17",
+  "version": "1.0.0",
+  "id": "7e951304-6e79-4fc9-bed6-6b04caf46448",
+  "developer": {
+    "name": "Inanovai Technologies",
+    "websiteUrl": "https://example.com",
+    "privacyUrl": "https://example.com/privacy",
+    "termsOfUseUrl": "https://example.com/terms"
+  },
+  "icons": {
+    "color": "color.png",
+    "outline": "outline.png"
+  },
+  "name": {
+    "short": "Inanovai Assistant",
+    "full": "Inanovai Assistant"
+  },
+  "description": {
+    "short": "An AI assistant you can chat with inside Teams.",
+    "full": "An AI assistant inside Microsoft Teams. Ask it questions in a chat and it replies. It remembers the recent messages in each conversation."
+  },
+  "accentColor": "#5B5FC7",
+  "bots": [
+    {
+      "botId": "4f2998bf-2038-4bdf-9768-2eeed0fada96",
+      "scopes": ["personal", "team", "groupChat"],
+      "supportsFiles": false,
+      "isNotificationOnly": false
+    }
+  ],
+  "permissions": ["identity", "messageTeamMembers"],
+  "validDomains": []
+}
