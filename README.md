@@ -120,7 +120,7 @@ Copy `.env.example` to `.env` and fill it in. Nothing in `.env` is committed.
 
 | Setting | Purpose |
 |---------|---------|
-| `OPENAI_API_KEY` | The AI API key. Without it the bot falls back to an echo bot and still starts |
+| `HF_TOKEN` | The Hugging Face token. Without it the bot falls back to an echo bot and still starts |
 | `MICROSOFT_APP_ID` | From the Azure Bot registration |
 | `MICROSOFT_APP_PASSWORD` | The client secret |
 | `MICROSOFT_APP_TYPE` | `SingleTenant` |
@@ -131,7 +131,7 @@ Dials at the top of `agent.py`:
 
 | Setting | Default | Effect |
 |---------|---------|--------|
-| `MODEL` | `gpt-4o` | Which model answers |
+| `MODEL` | `meta-llama/Llama-3.3-70B-Instruct` | Which model answers |
 | `TEMPERATURE` | `0.7` | 0 = predictable, 1 = chatty |
 | `MAX_TOKENS` | `1000` | Longest reply |
 | `MEMORY_TURNS` | `10` | How far back it remembers, 10 = 5 exchanges |
@@ -204,8 +204,8 @@ request; an administrator still has to approve it.
 
 ## Troubleshooting
 
-**Startup says `agent: echo` instead of `agent: openai`**
-No API key was found. Check `.env`. Note that `config.py` loads it with
+**Startup says `agent: echo` instead of `agent: huggingface`**
+No token was found. Check `.env`. Note that `config.py` loads it with
 `override=True` on purpose — without that, a stale system-wide environment
 variable of the same name silently beats the one in `.env`.
 

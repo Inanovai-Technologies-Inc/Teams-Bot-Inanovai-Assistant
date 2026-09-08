@@ -12,7 +12,7 @@ import asyncio
 import sys
 from types import SimpleNamespace
 
-from agent import AgentContext, EchoAgent, OpenAIAgent
+from agent import MODEL, AgentContext, EchoAgent, HuggingFaceAgent
 
 
 class FakeClient:
@@ -39,8 +39,8 @@ class FakeClient:
         )
 
 
-def make_agent(**kwargs) -> OpenAIAgent:
-    agent = OpenAIAgent(api_key="fake-key-never-used")
+def make_agent(**kwargs) -> HuggingFaceAgent:
+    agent = HuggingFaceAgent(api_key="fake-key-never-used")
     agent.client = FakeClient(**kwargs)
     return agent
 
@@ -66,7 +66,7 @@ async def main():
     agent = make_agent(reply="Paris.")
     answer = await agent.ask("What is the capital of France?", CTX)
     check("returns the model's reply", answer == "Paris.", f"got {answer!r}")
-    check("used gpt-4o", agent.client.calls[0]["model"] == "gpt-4o")
+    check("used the configured model", agent.client.calls[0]["model"] == MODEL)
     check("sent a system prompt",
           agent.client.calls[0]["messages"][0]["role"] == "system")
 

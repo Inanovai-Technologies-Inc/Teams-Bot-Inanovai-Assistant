@@ -10,8 +10,8 @@ The contract every agent follows is one method:
 
 Give it text, get text back. That's it.
 
-Stage 1: EchoAgent   -- repeats you (no API key needed)
-Stage 3: OpenAIAgent -- a real model  <-- YOU ARE HERE
+Stage 1: EchoAgent        -- repeats you (no API key needed)
+Stage 3: HuggingFaceAgent -- a real model  <-- YOU ARE HERE
 Stage 5: NemoClawAgent
 """
 
@@ -73,10 +73,17 @@ class EchoAgent:
 # Stage 3 -- a real model.
 # ---------------------------------------------------------------------------
 
-MODEL = "gpt-4o"
+# Hugging Face's router speaks the OpenAI API, so the `openai` SDK works
+# unchanged -- only the base URL and the model name are different.
+BASE_URL = "https://router.huggingface.co/v1"
 
-# Other models this key can use: gpt-4o-mini (cheaper/faster),
-# gpt-4.1, gpt-4-turbo. Change the line above to switch.
+MODEL = "meta-llama/Llama-3.3-70B-Instruct"
+
+# Other models on the router: openai/gpt-oss-120b, Qwen/Qwen3-14B,
+# deepseek-ai/DeepSeek-R1. Prefer a plain instruct model: reasoning models
+# put their answer in `reasoning_content` and leave `content` empty, which
+# the code below reads as "no reply".
+# Full list:  GET https://router.huggingface.co/v1/models
 
 # How creative the replies are. 0 = predictable, 1 = chatty.
 TEMPERATURE = 0.7
@@ -97,20 +104,24 @@ sign-offs; get straight to the answer.
 If you do not know something, say so plainly."""
 
 
-class OpenAIAgent:
-    """Sends the message to OpenAI and returns the reply.
+class HuggingFaceAgent:
+    """Sends the message to Hugging Face and returns the reply.
 
     Remembers the last few messages per conversation, so follow-up
     questions like "and what about the other one?" work.
     """
 
-    name = "openai"
+    name = "huggingface"
 
     def __init__(self, api_key: str | None = None):
         from openai import AsyncOpenAI
 
-        # No api_key argument -> the SDK reads OPENAI_API_KEY itself.
-        self.client = AsyncOpenAI(api_key=api_key) if api_key else AsyncOpenAI()
+        # Left to itself the SDK looks for OPENAI_API_KEY, which this
+        # project no longer sets, so always hand it the token explicitly.
+        self.client = AsyncOpenAI(
+            api_key=api_key or os.environ.get("HF_TOKEN", ""),
+            base_url=BASE_URL,
+        )
 
         # conversation_id -> recent messages
         self.history: Dict[str, deque] = defaultdict(
@@ -155,7 +166,7 @@ class OpenAIAgent:
         usage = response.usage
         if usage:
             log.info(
-                "openai reply: %s in / %s out tokens",
+                "huggingface reply: %s in / %s out tokens",
                 usage.prompt_tokens,
                 usage.completion_tokens,
             )
@@ -176,19 +187,19 @@ class OpenAIAgent:
 def get_agent():
     """Single place that decides which agent is live.
 
-    Uses the AI API when a key is available, and falls back to the
+    Uses Hugging Face when a token is available, and falls back to the
     echo bot when there isn't one -- so the project always starts.
     """
-    if os.environ.get("OPENAI_API_KEY"):
+    if os.environ.get("HF_TOKEN"):
         try:
-            agent = OpenAIAgent()
-            log.info("Using OpenAIAgent (model: %s)", MODEL)
+            agent = HuggingFaceAgent()
+            log.info("Using HuggingFaceAgent (model: %s)", MODEL)
             return agent
         except Exception:
-            log.exception("Could not start OpenAIAgent -- falling back to echo")
+            log.exception("Could not start HuggingFaceAgent -- falling back to echo")
 
     log.warning(
-        "No OPENAI_API_KEY found -- running the echo bot. "
-        "Add the key to .env to switch on the real agent."
+        "No HF_TOKEN found -- running the echo bot. "
+        "Add the token to .env to switch on the real agent."
     )
     return EchoAgent()

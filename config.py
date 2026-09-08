@@ -21,4 +21,4 @@ class Config:
     APP_TENANTID = os.environ.get("MICROSOFT_APP_TENANT_ID", "")
 
     # Stage 3: the agent. Without this the bot falls back to echo.
-    OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+    HF_TOKEN = os.environ.get("HF_TOKEN", "")
