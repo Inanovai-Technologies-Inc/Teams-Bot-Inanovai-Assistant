@@ -1,8 +1,13 @@
 """
 THE SERVER.
 
-Starts a small web server with one important URL: POST /api/messages.
-Teams delivers every message there. This file wires that URL to bot.py.
+Starts a small web server and wires up every place people can reach the bot:
+
+    POST /api/messages       Microsoft Teams
+    POST /telegram/webhook   Telegram      (when TELEGRAM_BOT_TOKEN is set)
+    GET/POST /whatsapp/webhook  WhatsApp   (when the WHATSAPP_* settings are set)
+
+All of them end up calling the same agent.
 
 Run it with:   python app.py
 """
@@ -23,6 +28,7 @@ from botbuilder.integration.aiohttp import (
 from botbuilder.schema import Activity, ActivityTypes
 
 from bot import TeamsBot
+from channels import build_channels
 from config import Config
 
 logging.basicConfig(
@@ -69,6 +75,11 @@ async def messages(req: Request) -> Response:
     return await ADAPTER.process(req, BOT)
 
 
+# Telegram, WhatsApp and anything else with credentials configured.
+# They share BOT.agent, so every channel uses the same brain.
+CHANNELS = build_channels(BOT.agent)
+
+
 async def health(req: Request) -> Response:
     """Open this in a browser to confirm the server is up."""
     return json_response(
@@ -77,6 +88,7 @@ async def health(req: Request) -> Response:
             "bot": "running",
             "agent": BOT.agent.name,
             "endpoint": "/api/messages",
+            "channels": ["teams"] + [c.name for c in CHANNELS],
         }
     )
 
@@ -85,6 +97,10 @@ APP = web.Application(middlewares=[aiohttp_error_middleware])
 APP.router.add_post("/api/messages", messages)
 APP.router.add_get("/", health)
 
+for channel in CHANNELS:
+    channel.register(APP)
+    log.info("Channel enabled: %s", channel.name)
+
 
 if __name__ == "__main__":
     log.info("=" * 58)
@@ -92,6 +108,7 @@ if __name__ == "__main__":
     log.info("  Health check : http://localhost:%s/", CONFIG.PORT)
     log.info("  Teams posts to: http://localhost:%s/api/messages", CONFIG.PORT)
     log.info("  Agent        : %s", BOT.agent.name)
+    log.info("  Channels     : %s", ", ".join(["teams"] + [c.name for c in CHANNELS]))
     log.info("  Press Ctrl+C to stop")
     log.info("=" * 58)
     try:

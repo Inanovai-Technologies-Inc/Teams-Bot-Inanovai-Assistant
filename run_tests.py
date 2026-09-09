@@ -27,6 +27,7 @@ def run(script: str) -> bool:
 results = {
     "test_agent.py (agent logic)": run("test_agent.py"),
     "test_bot.py (Teams layer)": run("test_bot.py"),
+    "test_channels.py (Telegram + WhatsApp)": run("test_channels.py"),
 }
 
 if server_is_up():

@@ -1,0 +1,335 @@
+<title>Inanovai Assistant</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Public+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap">
+
+<style>
+:root {
+  --paper:   #FFFFFF;
+  --ink:     #0D1017;
+  --body:    #333B49;
+  --muted:   #6A7382;
+  --hair:    #E4E7EC;
+  --hair-2:  #F0F2F5;
+  --accent:  #3F3FD1;
+  --ok:      #0A7B3E;
+  --warn:    #A96A00;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper:   #0C0E14;
+    --ink:     #F2F4F8;
+    --body:    #C3CAD6;
+    --muted:   #8B93A2;
+    --hair:    #232733;
+    --hair-2:  #171A22;
+    --accent:  #8E8EF5;
+    --ok:      #48C97C;
+    --warn:    #E0A83C;
+  }
+}
+:root[data-theme="dark"] {
+  --paper:   #0C0E14;
+  --ink:     #F2F4F8;
+  --body:    #C3CAD6;
+  --muted:   #8B93A2;
+  --hair:    #232733;
+  --hair-2:  #171A22;
+  --accent:  #8E8EF5;
+  --ok:      #48C97C;
+  --warn:    #E0A83C;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--body);
+  font-family: "Public Sans", -apple-system, "Segoe UI", sans-serif;
+  font-size: 16px;
+  line-height: 1.68;
+  -webkit-font-smoothing: antialiased;
+}
+
+.page { max-width: 940px; margin: 0 auto; padding: 0 32px 110px; }
+
+/* ---------- masthead ---------- */
+.masthead { padding: 76px 0 30px; border-bottom: 1px solid var(--ink); }
+.kicker {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 11px; letter-spacing: .18em; text-transform: uppercase;
+  color: var(--muted); margin: 0 0 18px;
+}
+h1 {
+  font-family: "Sora", sans-serif;
+  font-size: clamp(38px, 6vw, 56px); font-weight: 700; letter-spacing: -.035em;
+  line-height: 1.02; color: var(--ink); margin: 0 0 18px; text-wrap: balance;
+}
+.standfirst {
+  font-size: 19px; line-height: 1.55; color: var(--muted);
+  max-width: 32ch; margin: 0;
+}
+
+.reach {
+  display: flex; flex-wrap: wrap; gap: 26px;
+  padding: 20px 0 0; margin-top: 26px; border-top: 1px solid var(--hair);
+}
+.reach div { display: flex; flex-direction: column; gap: 2px; }
+.reach dt {
+  font-family: "Sora", sans-serif;
+  font-size: 15px; font-weight: 600; color: var(--ink);
+}
+.reach dd {
+  margin: 0; font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 11.5px; letter-spacing: .04em; text-transform: uppercase;
+}
+.live { color: var(--ok); }
+.hold { color: var(--warn); }
+
+/* ---------- hanging-label sections ---------- */
+section {
+  display: grid; grid-template-columns: 186px 1fr; gap: 40px;
+  padding: 40px 0; border-bottom: 1px solid var(--hair-2);
+}
+section:last-of-type { border-bottom: none; }
+section > h2 {
+  font-family: "Sora", sans-serif;
+  font-size: 17px; font-weight: 600; letter-spacing: -.01em; color: var(--ink);
+  margin: 0; line-height: 1.35; text-wrap: balance;
+}
+.col > :first-child { margin-top: 0; }
+.col > :last-child { margin-bottom: 0; }
+p { margin: 0 0 15px; max-width: 66ch; }
+em { color: var(--ink); font-style: italic; }
+strong { color: var(--ink); font-weight: 600; }
+code {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: .855em; color: var(--ink);
+  background: var(--hair-2); padding: 2px 5px; border-radius: 2px;
+}
+a { color: var(--accent); text-underline-offset: 2px; }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+/* ---------- the split ---------- */
+.split { margin: 0 0 16px; }
+.split-row {
+  display: grid; grid-template-columns: 1fr; gap: 3px;
+  padding: 13px 0; border-top: 1px solid var(--hair);
+}
+.split-row:last-child { border-bottom: 1px solid var(--hair); }
+.split-row b {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 13.5px; font-weight: 500; color: var(--ink);
+}
+.split-row span { font-size: 15px; color: var(--muted); }
+.split-row.brain b { color: var(--ok); }
+
+/* ---------- tables ---------- */
+.scroll { overflow-x: auto; margin: 0 0 15px; }
+table { border-collapse: collapse; width: 100%; font-size: 15px; min-width: 420px; }
+th {
+  text-align: left; font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 10.5px; font-weight: 500; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--muted); padding: 0 20px 9px 0; border-bottom: 1px solid var(--ink);
+}
+td { padding: 12px 20px 12px 0; border-bottom: 1px solid var(--hair); vertical-align: top; }
+tr:last-child td { border-bottom: none; }
+td.mono {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 13px; color: var(--ink); white-space: nowrap;
+}
+td.soft { color: var(--muted); }
+
+/* ---------- commands ---------- */
+.cmd { margin: 0 0 20px; }
+.cmd:last-child { margin: 0; }
+.cmd p { margin: 0 0 7px; font-size: 15px; color: var(--muted); }
+pre {
+  margin: 0; padding: 13px 16px; overflow-x: auto;
+  background: var(--hair-2); border-left: 2px solid var(--accent);
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 13px; line-height: 1.6; color: var(--ink);
+}
+
+/* ---------- traps ---------- */
+.traps { counter-reset: t; margin: 0; padding: 0; list-style: none; }
+.traps li {
+  counter-increment: t; position: relative;
+  padding: 0 0 22px 46px; margin: 0;
+}
+.traps li:last-child { padding-bottom: 0; }
+.traps li::before {
+  content: counter(t, decimal-leading-zero);
+  position: absolute; left: 0; top: 1px;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 12px; color: var(--warn); letter-spacing: .05em;
+}
+.traps h3 {
+  font-family: "Sora", sans-serif;
+  font-size: 15.5px; font-weight: 600; color: var(--ink);
+  margin: 0 0 4px; line-height: 1.4;
+}
+.traps p { margin: 0; font-size: 15px; }
+
+/* ---------- footer ---------- */
+footer {
+  margin-top: 46px; padding-top: 20px; border-top: 1px solid var(--ink);
+  display: flex; flex-wrap: wrap; gap: 8px 28px;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 11.5px; letter-spacing: .05em; color: var(--muted);
+  text-transform: uppercase;
+}
+
+@media (max-width: 780px) {
+  section { grid-template-columns: 1fr; gap: 14px; padding: 32px 0; }
+  section > h2 { font-size: 20px; }
+  .page { padding: 0 22px 76px; }
+  .masthead { padding-top: 48px; }
+  .standfirst { max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+</style>
+
+<div class="page">
+
+  <header class="masthead">
+    <p class="kicker">Inanovai Technologies · Internal handbook</p>
+    <h1>Inanovai Assistant</h1>
+    <p class="standfirst">One assistant, reachable from every chat app we use.</p>
+
+    <dl class="reach">
+      <div><dt>Microsoft Teams</dt><dd class="live">Live</dd></div>
+      <div><dt>Telegram</dt><dd class="live">Live · @Inanovai_bot</dd></div>
+      <div><dt>WhatsApp</dt><dd class="hold">Needs a number</dd></div>
+      <div><dt>Model</dt><dd>Llama 3.3 70B</dd></div>
+      <div><dt>Hosting</dt><dd>Azure · free tier</dd></div>
+    </dl>
+  </header>
+
+  <section>
+    <h2>What it does</h2>
+    <div class="col">
+      <p>Ask it a question in a chat and it answers. It keeps the last five exchanges of each conversation, so follow-ups like <em>"and what about that one?"</em> land properly.</p>
+      <p>It cannot reach mail, files or calendars. It reads messages addressed to it and replies. Nothing is written to disk, which is also why nobody — including us — can read anyone's conversation afterwards.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>The one idea worth knowing</h2>
+    <div class="col">
+      <p>The project is two layers that know nothing about each other. Every other decision follows from this, and it is why adding Telegram took a day rather than a rewrite.</p>
+
+      <div class="split">
+        <div class="split-row">
+          <b>app.py · bot.py · channels/</b>
+          <span>Speaks Teams, Telegram and WhatsApp. Holds no intelligence.</span>
+        </div>
+        <div class="split-row brain">
+          <b>agent.py</b>
+          <span>Holds the intelligence. Has never heard of a chat app.</span>
+        </div>
+      </div>
+
+      <p>They meet at one method: <code>ask(message, context) -&gt; str</code>. Text in, text out. Changing the model is one new class. Adding a chat app is one new file in <code>channels/</code>. Neither side notices the other changed.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Where a message lands</h2>
+    <div class="col">
+      <div class="scroll">
+        <table>
+          <thead><tr><th>Route</th><th>Handled by</th><th>Arrives via</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">/api/messages</td><td class="mono">bot.py</td><td class="soft">Azure Bot Service</td></tr>
+            <tr><td class="mono">/telegram/webhook</td><td class="mono">channels/telegram.py</td><td class="soft">Telegram Bot API</td></tr>
+            <tr><td class="mono">/whatsapp/webhook</td><td class="mono">channels/whatsapp.py</td><td class="soft">Meta Cloud API</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>All three funnel into the same agent. Memory is filed by platform — <code>telegram:555</code>, <code>whatsapp:9199…</code> — so two conversations can never see each other, even across apps.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Where it runs</h2>
+    <div class="col">
+      <div class="scroll">
+        <table>
+          <thead><tr><th>Piece</th><th>Name</th></tr></thead>
+          <tbody>
+            <tr><td class="soft">Resource group</td><td class="mono">teams-bot-rg · Central India</td></tr>
+            <tr><td class="soft">Web app</td><td class="mono">inanovai-teams-bot.azurewebsites.net</td></tr>
+            <tr><td class="soft">Service plan</td><td class="mono">inanovai-bot-plan · Linux F1</td></tr>
+            <tr><td class="soft">Azure Bot</td><td class="mono">inanovai-teams-bot · F0</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Secrets sit in App Service application settings, never in the deployed package. Azure and the bot registration are both free tiers, so the model API is the only thing that costs money.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Four commands you will actually use</h2>
+    <div class="col">
+      <div class="cmd">
+        <p>Is it up, and which channels are on?</p>
+        <pre>curl https://inanovai-teams-bot.azurewebsites.net/</pre>
+      </div>
+      <div class="cmd">
+        <p>Run every test. No keys, no network, no cost.</p>
+        <pre>.venv\Scripts\python.exe run_tests.py</pre>
+      </div>
+      <div class="cmd">
+        <p>Ship a change.</p>
+        <pre>az webapp deploy --resource-group teams-bot-rg \
+  --name inanovai-teams-bot --src-path deploy.zip --type zip</pre>
+      </div>
+      <div class="cmd">
+        <p>Watch it think.</p>
+        <pre>az webapp log tail --resource-group teams-bot-rg --name inanovai-teams-bot</pre>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Traps we already walked into</h2>
+    <div class="col">
+      <ol class="traps">
+        <li>
+          <h3>A stale environment variable quietly beat the real key</h3>
+          <p>A leftover <code>OPENAI_API_KEY=your-api-key-here</code> in the Windows user environment overrode <code>.env</code>, and the 401s looked exactly like a bad key. <code>config.py</code> now loads with <code>override=True</code> so the project's own file wins. Leave that flag alone.</p>
+        </li>
+        <li>
+          <h3>An app registration is not an identity</h3>
+          <p>Creating the Entra ID app does not create the service principal it signs in with. Messages arrived, replies never went out, and the log said <code>AADSTS7000229</code>. One command fixed it: <code>az ad sp create --id &lt;app-id&gt;</code>. Any new registration needs that same second step.</p>
+        </li>
+        <li>
+          <h3>One WhatsApp number points at one webhook</h3>
+          <p>Our number already feeds the ERP integration. Attaching the bot to it would redirect the ERP's messages. The bot needs a second number on the same Business Account — same billing, same verification, separate destination.</p>
+        </li>
+        <li>
+          <h3>The free tier sleeps</h3>
+          <p>After twenty idle minutes the first message waits about twenty seconds while the app wakes up. Everything after that is quick. Switching the plan to B1 removes it, with no redeploy.</p>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <section>
+    <h2>What is next</h2>
+    <div class="col">
+      <p>Prashanth to approve the pending Teams app so it shows up under <em>Built for your org</em>. A second phone number to finish WhatsApp. After that, Slack and a web widget are each a single file in <code>channels/</code> — the layer split has already paid for them.</p>
+    </div>
+  </section>
+
+  <footer>
+    <span>Teams-Bot-Inanovai-Assistant</span>
+    <span>Python · aiohttp · Azure</span>
+    <span>Maintained by Vishal Chavan</span>
+  </footer>
+
+</div>

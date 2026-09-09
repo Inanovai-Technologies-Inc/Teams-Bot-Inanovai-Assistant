@@ -22,3 +22,17 @@ class Config:
 
     # Stage 3: the agent. Without this the bot falls back to echo.
     HF_TOKEN = os.environ.get("HF_TOKEN", "")
+
+    # --- Telegram (optional) ---
+    TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    TELEGRAM_WEBHOOK_SECRET = os.environ.get("TELEGRAM_WEBHOOK_SECRET", "")
+
+    # --- WhatsApp, via the Meta Cloud API (optional) ---
+    WHATSAPP_TOKEN = os.environ.get("WHATSAPP_TOKEN", "")
+    WHATSAPP_PHONE_NUMBER_ID = os.environ.get("WHATSAPP_PHONE_NUMBER_ID", "")
+    WHATSAPP_VERIFY_TOKEN = os.environ.get("WHATSAPP_VERIFY_TOKEN", "")
+    WHATSAPP_APP_SECRET = os.environ.get("WHATSAPP_APP_SECRET", "")
+
+    # The public https address this bot is reachable at. Used when
+    # registering the Telegram webhook.
+    PUBLIC_URL = os.environ.get("PUBLIC_URL", "")
