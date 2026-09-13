@@ -11,5 +11,9 @@ python-dotenv>=1.0.0
 # Agent (Stage 3)
 openai>=1.0.0
 
+# Google Chat: verifying Google's tokens and posting slow replies
+google-auth>=2.30.0
+requests>=2.31.0
+
 # Production web server (Azure App Service)
 gunicorn>=21.2.0

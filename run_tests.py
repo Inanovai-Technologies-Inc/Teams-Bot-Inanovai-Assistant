@@ -28,6 +28,9 @@ results = {
     "test_agent.py (agent logic)": run("test_agent.py"),
     "test_bot.py (Teams layer)": run("test_bot.py"),
     "test_channels.py (Telegram + WhatsApp)": run("test_channels.py"),
+    "test_models.py (model picker)": run("test_models.py"),
+    "test_googlechat.py (Google Chat)": run("test_googlechat.py"),
+    "test_prompt.py (app named in prompt)": run("test_prompt.py"),
 }
 
 if server_is_up():

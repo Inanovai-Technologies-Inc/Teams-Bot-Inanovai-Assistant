@@ -6,6 +6,7 @@ Starts a small web server and wires up every place people can reach the bot:
     POST /api/messages       Microsoft Teams
     POST /telegram/webhook   Telegram      (when TELEGRAM_BOT_TOKEN is set)
     GET/POST /whatsapp/webhook  WhatsApp   (when the WHATSAPP_* settings are set)
+    POST /googlechat/webhook Google Chat   (when GOOGLE_CHAT_AUDIENCE is set)
 
 All of them end up calling the same agent.
 

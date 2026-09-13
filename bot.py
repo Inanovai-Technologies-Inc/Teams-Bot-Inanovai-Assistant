@@ -99,6 +99,7 @@ class TeamsBot(TeamsActivityHandler):
             user_id=getattr(sender, "id", "unknown"),
             user_name=getattr(sender, "name", None) or "there",
             conversation_id=turn_context.activity.conversation.id,
+            extra={"channel": "teams"},
         )
 
         log.info("[%s] said: %s", context.user_name, incoming)

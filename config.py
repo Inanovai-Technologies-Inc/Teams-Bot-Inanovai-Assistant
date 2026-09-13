@@ -33,6 +33,12 @@ class Config:
     WHATSAPP_VERIFY_TOKEN = os.environ.get("WHATSAPP_VERIFY_TOKEN", "")
     WHATSAPP_APP_SECRET = os.environ.get("WHATSAPP_APP_SECRET", "")
 
+    # --- Google Chat (optional) ---
+    # The endpoint URL exactly as entered in Google Cloud.
+    GOOGLE_CHAT_AUDIENCE = os.environ.get("GOOGLE_CHAT_AUDIENCE", "")
+    GOOGLE_CHAT_SERVICE_ACCOUNT_JSON = os.environ.get(
+        "GOOGLE_CHAT_SERVICE_ACCOUNT_JSON", "")
+
     # The public https address this bot is reachable at. Used when
     # registering the Telegram webhook.
     PUBLIC_URL = os.environ.get("PUBLIC_URL", "")

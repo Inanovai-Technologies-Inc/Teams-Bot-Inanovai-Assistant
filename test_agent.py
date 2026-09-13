@@ -12,7 +12,8 @@ import asyncio
 import sys
 from types import SimpleNamespace
 
-from agent import MODEL, AgentContext, EchoAgent, HuggingFaceAgent
+import models
+from agent import AgentContext, EchoAgent, HuggingFaceAgent
 
 
 class FakeClient:
@@ -66,7 +67,9 @@ async def main():
     agent = make_agent(reply="Paris.")
     answer = await agent.ask("What is the capital of France?", CTX)
     check("returns the model's reply", answer == "Paris.", f"got {answer!r}")
-    check("used the configured model", agent.client.calls[0]["model"] == MODEL)
+    check("used the default model",
+          agent.client.calls[0]["model"] == models.BY_KEY[models.DEFAULT_KEY].model,
+          f'got {agent.client.calls[0]["model"]}')
     check("sent a system prompt",
           agent.client.calls[0]["messages"][0]["role"] == "system")
 

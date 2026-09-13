@@ -50,4 +50,18 @@ def build_channels(agent):
             "WHATSAPP_PHONE_NUMBER_ID and WHATSAPP_VERIFY_TOKEN. Skipping."
         )
 
+    gchat_audience = os.environ.get("GOOGLE_CHAT_AUDIENCE", "").strip()
+    if gchat_audience:
+        from channels.googlechat import GoogleChatChannel, load_service_account
+        key = load_service_account(
+            os.environ.get("GOOGLE_CHAT_SERVICE_ACCOUNT_JSON", ""))
+        if key is None:
+            log.warning(
+                "Google Chat has no service account -- answers slower than "
+                "Google's 30 second window get a 'still thinking' note."
+            )
+        active.append(GoogleChatChannel(
+            agent, audience=gchat_audience, service_account_info=key,
+            project_number=os.environ.get("GOOGLE_CHAT_PROJECT_NUMBER", "").strip() or None))
+
     return active
