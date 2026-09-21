@@ -13,6 +13,11 @@ Give it text, get text back. That's it.
 Stage 1: EchoAgent        -- repeats you (no API key needed)
 Stage 3: HuggingFaceAgent -- real models, picked per conversation  <-- YOU ARE HERE
 Stage 5: NemoClawAgent
+
+Organizations can bring their own AI (see orgs.py). A channel that knows
+which organization a person belongs to puts it in
+AgentContext.extra["tenant"]; the agent then answers with that
+organization's model and key, and never falls back to ours.
 """
 
 import logging
@@ -24,6 +29,9 @@ from typing import Any, Dict
 import models
 
 log = logging.getLogger("agent")
+
+# How long to wait for an organization's own AI before giving up.
+ORG_AI_TIMEOUT = 45.0
 
 
 @dataclass
@@ -121,6 +129,58 @@ def system_prompt_for(context) -> str:
     return SYSTEM_PROMPT.format(app=APP_NAMES.get(channel, "a chat app"))
 
 
+def explain_ai_error(error: Exception) -> str:
+    """Turn a failed call to an organization's AI into a plain phrase."""
+    status = getattr(error, "status_code", None)
+    detail = str(error).lower()
+    if status in (401, 403) or "api key" in detail or "unauthorized" in detail:
+        return "the API key was rejected"
+    if status == 404 or "model_not_found" in detail or "does not exist" in detail:
+        return "the model name was not found"
+    if status == 429:
+        return "the AI provider is busy or the quota is used up"
+    if isinstance(error, TimeoutError) or "timed out" in detail or "timeout" in detail:
+        return "the AI provider took too long to answer"
+    if "connect" in detail or "name or service" in detail or "getaddrinfo" in detail:
+        return "the AI address could not be reached"
+    return "the AI provider returned an error"
+
+
+async def org_completion(client, model: str, messages: list, max_tokens: int):
+    """Ask an organization's own model.
+
+    Their provider may be anything OpenAI-compatible. Newer reasoning
+    models refuse `max_tokens` and a custom temperature, so when the
+    provider says so, ask again the way those models want.
+    """
+    try:
+        return await client.chat.completions.create(
+            model=model, messages=messages, temperature=TEMPERATURE, max_tokens=max_tokens)
+    except Exception as error:
+        detail = str(error).lower()
+        if getattr(error, "status_code", None) == 400 and (
+                "max_tokens" in detail or "temperature" in detail):
+            return await client.chat.completions.create(
+                model=model, messages=messages, max_completion_tokens=max_tokens * 3)
+        raise
+
+
+@dataclass
+class Route:
+    """Which models and which connection a message should use."""
+    catalogue: list
+    default_key: str
+    client: Any                 # our default connection
+    org_name: str = ""          # set when the organization brought its own AI
+    # saved AI id -> connection, when the organization brought its own AI
+    clients: Dict[str, Any] = field(default_factory=dict)
+
+    def client_for(self, model) -> Any:
+        if self.org_name:
+            return self.clients[model.provider.split(":", 1)[1]]
+        return self.client
+
+
 class HuggingFaceAgent:
     """Sends the message to a model and returns the reply.
 
@@ -131,15 +191,25 @@ class HuggingFaceAgent:
 
     name = "huggingface"
 
-    def __init__(self, api_key: str | None = None):
+    def __init__(self, api_key: str | None = None, registry=None,
+                 allow_private_ai_urls: bool = False):
         from openai import AsyncOpenAI
+
+        token = api_key or os.environ.get("HF_TOKEN", "")
+        # Organizations that did not bring their own AI use ours. Without a
+        # token there is no "ours", only theirs.
+        self.has_default = bool(token)
 
         # Left to itself the SDK looks for OPENAI_API_KEY, which this
         # project no longer sets, so always hand it the token explicitly.
-        self.client = AsyncOpenAI(
-            api_key=api_key or os.environ.get("HF_TOKEN", ""),
-            base_url=BASE_URL,
-        )
+        self.client = AsyncOpenAI(api_key=token or "not-set", base_url=BASE_URL)
+
+        # Where organizations and their own AI keys are kept (orgs.py).
+        self.registry = registry
+        # (org id, settings version) -> a connection to that organization's AI
+        self._org_clients: Dict[tuple, Any] = {}
+        # Local testing only: let an organization's AI live on this machine.
+        self.allow_private_ai_urls = allow_private_ai_urls
 
         # conversation_id -> recent messages
         self.history: Dict[str, deque] = defaultdict(
@@ -152,13 +222,47 @@ class HuggingFaceAgent:
 
     # ------------------------------------------------------------ helpers
 
-    def model_for(self, conversation_id: str) -> "models.Model":
-        key = self.chosen.get(conversation_id, models.DEFAULT_KEY)
-        return models.BY_KEY.get(key) or models.BY_KEY[models.DEFAULT_KEY]
+    def route_for(self, context: AgentContext) -> Route:
+        """Our models, or the organization's own when they brought one."""
+        tenant = (context.extra or {}).get("tenant", "")
+        if self.registry is not None and tenant:
+            org = self.registry.find(tenant)
+            ais = self.registry.ais_for(org)
+            catalogue = models.org_catalogue(ais)
+            if catalogue:
+                return Route(catalogue=catalogue, default_key=catalogue[0].key,
+                             client=None, org_name=org.name,
+                             clients={ai.id: self._org_client(org.id, ai) for ai in ais})
+        return Route(catalogue=models.CATALOGUE, default_key=models.DEFAULT_KEY,
+                     client=self.client)
 
-    def _switch(self, conversation_id: str, wanted: str) -> str | None:
+    def _org_client(self, org_id: str, ai) -> Any:
+        from openai import AsyncOpenAI
+
+        from orgs import public_http_client
+
+        cache_key = (org_id, ai.id, ai.version)
+        client = self._org_clients.get(cache_key)
+        if client is None:
+            # Settings changed: drop the old connection for this saved AI.
+            for old in [k for k in self._org_clients if k[:2] == (org_id, ai.id)]:
+                self._org_clients.pop(old)
+            client = AsyncOpenAI(api_key=ai.api_key, base_url=ai.base_url,
+                                 timeout=ORG_AI_TIMEOUT, max_retries=1,
+                                 http_client=public_http_client(self.allow_private_ai_urls))
+            self._org_clients[cache_key] = client
+        return client
+
+    def model_for(self, conversation_id: str, route: Route | None = None) -> "models.Model":
+        catalogue = route.catalogue if route else models.CATALOGUE
+        default = route.default_key if route else models.DEFAULT_KEY
+        key = self.chosen.get(conversation_id, default)
+        return models.get(key, catalogue) or models.get(default, catalogue)
+
+    def _switch(self, conversation_id: str, wanted: str,
+                route: Route | None = None) -> str | None:
         """Switch model if `wanted` names one. Returns the reply, or None."""
-        picked = models.get(wanted)
+        picked = models.get(wanted, route.catalogue if route else None)
         if not picked:
             return None
         self.chosen[conversation_id] = picked.key
@@ -182,15 +286,17 @@ class HuggingFaceAgent:
             self.awaiting_choice.discard(cid)
             return "Cleared. Starting fresh."
 
+        route = self.route_for(context)
+
         # Show the menu.
         if lowered in ("model", "models", "model?"):
             self.awaiting_choice.add(cid)
-            return models.menu(self.chosen.get(cid, models.DEFAULT_KEY))
+            return models.menu(self.model_for(cid, route).key, route.catalogue)
 
         # "model qwen" / "/model 3" -- pick directly.
         if lowered.startswith(("model ", "use ", "switch to ")):
             wanted = lowered.split(" ", 1)[1].replace("switch to ", "")
-            reply = self._switch(cid, wanted)
+            reply = self._switch(cid, wanted, route)
             if reply:
                 return reply
             return (f"I do not have a model called '{wanted}'. "
@@ -198,13 +304,17 @@ class HuggingFaceAgent:
 
         # A bare "3" or "qwen" right after the menu means they are choosing.
         if cid in self.awaiting_choice:
-            reply = self._switch(cid, lowered)
+            reply = self._switch(cid, lowered, route)
             if reply:
                 return reply
             # Not a choice after all -- they moved on. Treat it as a question.
             self.awaiting_choice.discard(cid)
 
-        chosen = self.model_for(cid)
+        if not route.org_name and not self.has_default:
+            return ("No AI is set up for your organization yet. "
+                    "Ask your admin to add one on the settings page.")
+
+        chosen = self.model_for(cid, route)
         turns = self.history[cid]
         turns.append({"role": "user", "content": text})
 
@@ -212,15 +322,27 @@ class HuggingFaceAgent:
         # so a normal budget can end the reply before it has begun.
         budget = MAX_TOKENS * 3 if chosen.thinks else MAX_TOKENS
 
+        messages = [{"role": "system", "content": system_prompt_for(context)}, *turns]
         try:
-            response = await self.client.chat.completions.create(
-                model=chosen.model,
-                temperature=TEMPERATURE,
-                max_tokens=budget,
-                messages=[{"role": "system", "content": system_prompt_for(context)}, *turns],
-            )
+            if route.org_name:
+                response = await org_completion(route.client_for(chosen), chosen.model,
+                                                messages, budget)
+            else:
+                response = await route.client.chat.completions.create(
+                    model=chosen.model,
+                    temperature=TEMPERATURE,
+                    max_tokens=budget,
+                    messages=messages,
+                )
         except Exception as error:
             turns.pop()
+            if route.org_name:
+                # Their AI, their data: never quietly answer with ours instead.
+                reason = explain_ai_error(error)
+                log.warning("%s own AI failed (%s): %s", route.org_name,
+                            chosen.model, type(error).__name__)
+                return (f"Your organization's AI could not answer: {reason}. "
+                        f"Ask your admin to check it on the settings page.")
             detail = str(error)
             # The router returns 402 when that provider's allowance is spent.
             # It is model-specific, so another one usually still works.
@@ -274,10 +396,17 @@ def get_agent():
 
     Uses Hugging Face when a token is available, and falls back to the
     echo bot when there isn't one -- so the project always starts.
+    Organizations' own AI keys come from orgs.py when ORG_SECRETS_KEY is set.
     """
-    if os.environ.get("HF_TOKEN"):
+    import orgs
+
+    registry = orgs.get_registry()
+    if os.environ.get("HF_TOKEN") or registry.enabled:
         try:
-            agent = HuggingFaceAgent()
+            agent = HuggingFaceAgent(
+                registry=registry,
+                allow_private_ai_urls=(not os.environ.get("WEBSITE_SITE_NAME")
+                                       and os.environ.get("ALLOW_PRIVATE_AI_URLS", "") == "1"))
             log.info("Using HuggingFaceAgent (%s models, default: %s)",
                      len(models.CATALOGUE), models.DEFAULT_KEY)
             return agent

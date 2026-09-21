@@ -31,6 +31,8 @@ results = {
     "test_models.py (model picker)": run("test_models.py"),
     "test_googlechat.py (Google Chat)": run("test_googlechat.py"),
     "test_prompt.py (app named in prompt)": run("test_prompt.py"),
+    "test_orgs.py (organizations with their own AI)": run("test_orgs.py"),
+    "test_settings.py (settings and admin pages)": run("test_settings.py"),
 }
 
 if server_is_up():

@@ -19,6 +19,7 @@ from botbuilder.core.teams import TeamsActivityHandler
 from botbuilder.schema import Activity, ActivityTypes, ChannelAccount
 
 from agent import AgentContext, get_agent
+from orgs import teams_tenant
 
 log = logging.getLogger("bot")
 
@@ -35,6 +36,14 @@ AGENT_TIMEOUT = 60.0
 
 # How many recent message ids to remember, to spot Teams re-deliveries.
 SEEN_MESSAGE_LIMIT = 500
+
+
+def tenant_id_of(activity) -> str:
+    """The Microsoft 365 tenant a Teams message came from."""
+    tenant = getattr(activity.conversation, "tenant_id", None)
+    if not tenant and isinstance(activity.channel_data, dict):
+        tenant = (activity.channel_data.get("tenant") or {}).get("id")
+    return tenant or ""
 
 
 async def keep_typing(turn_context: TurnContext, done: asyncio.Event) -> None:
@@ -99,7 +108,8 @@ class TeamsBot(TeamsActivityHandler):
             user_id=getattr(sender, "id", "unknown"),
             user_name=getattr(sender, "name", None) or "there",
             conversation_id=turn_context.activity.conversation.id,
-            extra={"channel": "teams"},
+            extra={"channel": "teams",
+                   "tenant": teams_tenant(tenant_id_of(turn_context.activity))},
         )
 
         log.info("[%s] said: %s", context.user_name, incoming)

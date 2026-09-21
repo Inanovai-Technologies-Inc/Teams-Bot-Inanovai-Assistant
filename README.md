@@ -101,6 +101,8 @@ another.
 | `channels/telegram.py` | Telegram webhook, typing action, group @mention handling |
 | `channels/whatsapp.py` | Meta Cloud API webhook, verification, signature check, read receipts |
 | `channels/googlechat.py` | Google Chat endpoint, token verification, both event formats |
+| `orgs.py` | Client organizations, their Teams tenant or Google domain, and their own AI keys (encrypted) |
+| `settings_web.py` | The `/admin` page for our team and the `/settings` page for client admins |
 | `register_channels.py` | Points Telegram at the server. Prints what to paste into Meta for WhatsApp |
 | `chat.py` | Talk to the bot from a terminal, through the real code path |
 | `package_app.py` | Builds the `.zip` you upload to Teams |
@@ -119,6 +121,8 @@ another.
 | `POST /telegram/webhook` | `channels/telegram.py` | Telegram Bot API |
 | `POST /googlechat/webhook` | `channels/googlechat.py` | Google Chat |
 | `GET`/`POST /whatsapp/webhook` | `channels/whatsapp.py` | Meta Cloud API |
+| `GET /settings` | `settings_web.py` | a client's admin, in a browser |
+| `GET /admin` | `settings_web.py` | the Inanovai team, in a browser |
 | `GET /` | health check | anyone |
 
 The health check reports which channels are live:
@@ -178,6 +182,8 @@ Open <http://localhost:3978/> for a health check.
 | `test_models.py` — model picker | 24 | no |
 | `test_googlechat.py` — Google Chat | 51 | no |
 | `test_prompt.py` — right app named per channel | 14 | no |
+| `test_orgs.py` — organizations and their own AI | 63 | no |
+| `test_settings.py` — settings and admin pages | 38 | no |
 | `test_local.py` — end to end | 9 | yes |
 
 None of them call the real model or touch the network, and none need a key,
@@ -232,6 +238,14 @@ Copy `.env.example` to `.env` and fill it in. Nothing in `.env` is committed.
 
 All three required WhatsApp values must be set together, or the channel is
 skipped.
+
+### Organizations' own AI
+
+| Setting | Purpose |
+|---------|---------|
+| `ORG_SECRETS_KEY` | Turns on `/admin` and `/settings`, and encrypts every saved client key. Make one with `python orgs.py new-secret-key`. Never change it once clients have saved keys, or they must enter them again |
+| `ADMIN_PASSWORD` | Password for the `/admin` page |
+| `DATA_DIR` | Where `orgs.json` lives. Blank means `./data` locally and `/home/data` on Azure, which survives redeploys |
 
 ### Dials
 
@@ -296,7 +310,7 @@ code. `.env` is deliberately excluded from the deployment package.
 Run the tests first. Then:
 
 ```powershell
-.venv\Scripts\python.exe -c "import zipfile; z=zipfile.ZipFile('deploy.zip','w',zipfile.ZIP_DEFLATED); [z.write(f) for f in ['app.py','bot.py','agent.py','models.py','config.py','requirements.txt','channels/__init__.py','channels/base.py','channels/telegram.py','channels/whatsapp.py','channels/googlechat.py']]; z.close()"
+.venv\Scripts\python.exe -c "import zipfile; z=zipfile.ZipFile('deploy.zip','w',zipfile.ZIP_DEFLATED); [z.write(f) for f in ['app.py','bot.py','agent.py','models.py','config.py','requirements.txt','channels/__init__.py','channels/base.py','channels/telegram.py','channels/whatsapp.py','channels/googlechat.py','orgs.py','settings_web.py']]; z.close()"
 az webapp deploy --resource-group teams-bot-rg --name inanovai-teams-bot --src-path deploy.zip --type zip
 ```
 
@@ -318,6 +332,70 @@ az webapp log tail --resource-group teams-bot-rg --name inanovai-teams-bot
 ```
 
 ---
+
+## Organizations bringing their own AI
+
+A client organization can use its own AI: one provider and API key, or
+several (for example an OpenAI key and a Gemini key, up to 10). Their
+people then get answers from their models, billed to them, and the bot
+never falls back to ours for them. Everyone else keeps our default models.
+
+Every model from every saved key appears in the chat `model` menu, and each
+one is called with the key it was saved under. The first model of the
+**default** key is what a new chat starts on.
+
+| Their provider | What they enter |
+|----------------|-----------------|
+| OpenAI | API key and model names. Address is filled in |
+| Azure OpenAI | `https://<resource>.openai.azure.com/openai/v1`, key, deployment names |
+| Google Gemini | API key and model names. Address is filled in |
+| Anything else OpenAI-compatible (vLLM, Ollama, OpenRouter) | Its public https address, key, model names |
+
+**How the bot knows who is asking:** Teams sends the organization's
+tenant ID with every message, and Google Chat sends the sender's email, so
+the domain identifies the organization. Telegram and WhatsApp messages
+always use our default models.
+
+### Setting up a client (our team)
+
+1. Open `<PUBLIC_URL>/admin` and sign in with `ADMIN_PASSWORD`.
+2. **Add an organization**: its name, and one line per identifier:
+   - `teams:<their Microsoft tenant ID>`
+   - `google:<their email domain>`, for example `google:acme.com`
+
+   Don't know the tenant ID? Ask anyone there to message the bot once. It
+   then appears under **Recently seen, not registered** on the admin page.
+3. Copy the **settings link**, **organization ID** and **access code** shown.
+   The code is shown only once. Send the link and the code separately.
+
+### Setting their AI (the client's admin)
+
+1. Open the settings link and sign in with the access code.
+2. Under **Add your AI**: give it a name, choose the provider, enter model
+   names and paste the API key.
+3. **Test connection**, then **Test and save**. A key that fails the test
+   is never saved.
+4. More keys: fill in **Add another AI** the same way. **Make default**
+   picks which one new chats start on.
+
+They can edit or remove any key, add more, or get a new access code at any
+time, without asking us. A saved key is never shown again to
+anyone, including our team.
+
+### What protects it
+
+- Keys are encrypted in `orgs.json` with `ORG_SECRETS_KEY`, and access codes
+  are stored only as salted hashes.
+- Each sign-in can reach only its own organization. Eight wrong codes from
+  one address lock it out for 15 minutes.
+- Forms posted from any other website are refused.
+- An address pointing into a private network, such as localhost or the cloud
+  metadata service, is refused. Only public https addresses are accepted. This
+  is checked on save and again on every connection, including redirects, so an
+  address re-pointed later is still refused.
+- If their AI fails, the person is told why in plain words, for example that
+  the key was rejected or the model name was not found. Their question is
+  never sent to our AI instead.
 
 ## Adding a channel
 

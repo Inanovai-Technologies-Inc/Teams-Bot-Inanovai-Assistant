@@ -47,6 +47,7 @@ import aiohttp
 from aiohttp import web
 
 from channels.base import ChannelBase
+from orgs import google_tenant
 
 log = logging.getLogger("googlechat")
 
@@ -277,7 +278,9 @@ class GoogleChatChannel(ChannelBase):
         thread_name = (message.get("thread") or {}).get("name")
         log.info("[%s] said: %s", name, text)
 
-        context = self.context_for(space_name, user.get("name"), name)
+        # The sender's email domain says which organization they are from.
+        context = self.context_for(space_name, user.get("name"), name,
+                                   tenant=google_tenant(user.get("email", "")))
         work = asyncio.ensure_future(self.reply_for(text, context))
 
         # Wait, but never past Google's window. asyncio.wait does not cancel

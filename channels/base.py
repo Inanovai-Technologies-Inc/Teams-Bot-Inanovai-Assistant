@@ -41,18 +41,23 @@ class ChannelBase:
         self._seen.append(message_id)
         return False
 
-    def context_for(self, chat_id, user_id=None, user_name=None) -> AgentContext:
+    def context_for(self, chat_id, user_id=None, user_name=None,
+                    tenant: str = "") -> AgentContext:
         """Build the agent's context.
 
         The conversation id is prefixed with the channel name so a Telegram
         chat and a WhatsApp chat can never share history, even if the
-        platforms happen to hand out the same numeric id.
+        platforms happen to hand out the same numeric id. `tenant` names the
+        organization the person belongs to, when the platform tells us.
         """
+        extra = {"channel": self.name}
+        if tenant:
+            extra["tenant"] = tenant
         return AgentContext(
             user_id=str(user_id or chat_id),
             user_name=user_name or "there",
             conversation_id=f"{self.name}:{chat_id}",
-            extra={"channel": self.name},
+            extra=extra,
         )
 
     async def reply_for(self, text: str, context: AgentContext) -> str:

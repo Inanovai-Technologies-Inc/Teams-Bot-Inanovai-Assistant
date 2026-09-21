@@ -31,6 +31,8 @@ from botbuilder.schema import Activity, ActivityTypes
 from bot import TeamsBot
 from channels import build_channels
 from config import Config
+from orgs import get_registry
+from settings_web import build_settings_site
 
 logging.basicConfig(
     level=logging.INFO,
@@ -101,6 +103,12 @@ APP.router.add_get("/", health)
 for channel in CHANNELS:
     channel.register(APP)
     log.info("Channel enabled: %s", channel.name)
+
+# /settings for client admins to plug in their own AI, /admin for our team.
+# The registry is shared, so a key saved here is what the agent uses next.
+SETTINGS = build_settings_site(get_registry())
+SETTINGS.register(APP)
+log.info("Settings pages: %s", "on" if SETTINGS.ready else "off (ORG_SECRETS_KEY not set)")
 
 
 if __name__ == "__main__":

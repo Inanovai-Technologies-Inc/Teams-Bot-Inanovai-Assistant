@@ -8,9 +8,9 @@ nothing else in the project changes.
 `label`    what they see in the menu
 `note`     one short line saying when to reach for it
 `model`    the exact id the provider expects
-`provider` which client talks to it. Only "hf" exists today; adding
-           "anthropic" or "openai" later means a second client, not a
-           second menu.
+`provider` which client talks to it: "hf" for our Hugging Face router,
+           "org" for a model an organization brought with its own key
+           (see orgs.py).
 `thinks`   True when the model reasons before answering. Those need a
            larger token budget or the answer gets cut off before it starts.
 """
@@ -58,33 +58,61 @@ BY_KEY = {m.key: m for m in CATALOGUE}
 DEFAULT_KEY = "llama"
 
 
-def get(key: str) -> Model | None:
+def org_catalogue(ais: list) -> list:
+    """The menu for an organization that brought its own AI.
+
+    `ais` are its saved AIs in order (each with .id, .label, .models). Models
+    are listed by the exact name their provider uses; the first is the
+    default. `provider` records which saved AI -- and so which key -- each
+    model is reached through.
+    """
+    single = len(ais) == 1
+    out, taken = [], set()
+    for ai in ais:
+        for name in ai.models:
+            key = name.lower()
+            if key in taken:
+                # The same model saved under two keys: tell them apart.
+                key = f"{ai.label.lower()}/{name.lower()}"
+            taken.add(key)
+            out.append(Model(
+                key=key,
+                label=name if single else f"{name} ({ai.label})",
+                note="your organization's model" if single else f"your organization's {ai.label}",
+                model=name, provider=f"org:{ai.id}"))
+    return out
+
+
+def get(key: str, catalogue: list | None = None) -> Model | None:
     """Look a model up by key, by menu number, or by a loose name match."""
+    catalogue = CATALOGUE if catalogue is None else catalogue
     if not key:
         return None
     key = key.strip().lower()
 
-    if key in BY_KEY:
-        return BY_KEY[key]
+    for m in catalogue:
+        if key == m.key:
+            return m
 
     if key.isdigit():
         i = int(key) - 1
-        if 0 <= i < len(CATALOGUE):
-            return CATALOGUE[i]
+        if 0 <= i < len(catalogue):
+            return catalogue[i]
         return None
 
     # "llama 3.3", "qwen coder", "gpt oss" -- be forgiving about spacing
     squashed = key.replace(" ", "").replace("-", "").replace(".", "")
-    for m in CATALOGUE:
+    for m in catalogue:
         if squashed == m.key or squashed in m.label.lower().replace(" ", "").replace(".", ""):
             return m
     return None
 
 
-def menu(current_key: str) -> str:
+def menu(current_key: str, catalogue: list | None = None) -> str:
     """The numbered list people see when they type `model`."""
+    catalogue = CATALOGUE if catalogue is None else catalogue
     lines = ["Pick a model - reply with a number or its name.", ""]
-    for i, m in enumerate(CATALOGUE, 1):
+    for i, m in enumerate(catalogue, 1):
         mark = "   (using now)" if m.key == current_key else ""
         lines.append(f"{i}. {m.label} - {m.note}{mark}")
     lines.append("")
