@@ -182,8 +182,8 @@ Open <http://localhost:3978/> for a health check.
 | `test_models.py` — model picker | 24 | no |
 | `test_googlechat.py` — Google Chat | 51 | no |
 | `test_prompt.py` — right app named per channel | 14 | no |
-| `test_orgs.py` — organizations and their own AI | 63 | no |
-| `test_settings.py` — settings and admin pages | 38 | no |
+| `test_orgs.py` — organizations and their own AI | 74 | no |
+| `test_settings.py` — settings and admin pages | 42 | no |
 | `test_local.py` — end to end | 9 | yes |
 
 None of them call the real model or touch the network, and none need a key,
@@ -381,6 +381,23 @@ always use our default models.
 They can edit or remove any key, add more, or get a new access code at any
 time, without asking us. A saved key is never shown again to
 anyone, including our team.
+
+### Registered organizations only
+
+On the admin page, **Who can use the bot** has a switch: *Only registered
+organizations can use the bot*. With it on, a company that installed the
+bot (for example from the Teams Store) but is not listed on the admin page
+gets one short reply, "not registered, to start using it, ...", and no AI
+is called. It then shows under **Recently seen, not registered**, ready to
+add. The text after "To start using it," is set on the same card.
+
+- Our own Microsoft tenant (`MICROSOFT_APP_TENANT_ID`) is always allowed.
+- Add your own Google domain as an organization before switching it on, or
+  your own Google Chat users will be refused.
+- Telegram and WhatsApp are not affected: those messages do not say which
+  company they come from.
+- It starts off, and the choice is kept in `orgs.json`, so it survives
+  redeploys.
 
 ### What protects it
 

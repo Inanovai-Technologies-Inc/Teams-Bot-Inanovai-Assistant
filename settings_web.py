@@ -103,6 +103,7 @@ class SettingsSite:
         app.router.add_post("/admin/update", self.admin_update)
         app.router.add_post("/admin/reset-code", self.admin_reset_code)
         app.router.add_post("/admin/delete", self.admin_delete)
+        app.router.add_post("/admin/policy", self.admin_policy)
         app.router.add_post("/logout", self.logout)
 
     # ------------------------------------------------------------ sessions
@@ -397,6 +398,15 @@ class SettingsSite:
             log.info("admin deleted %s", org.id)
         return await self.admin_page(request, notice="Organization removed, with its saved key.")
 
+    async def admin_policy(self, request):
+        form = await self._admin_form(request)
+        on = form.get("registered_only") == "on"
+        self.registry.set_policy(on, form.get("contact", ""))
+        log.info("admin set registered-only to %s", on)
+        return await self.admin_page(request, notice=(
+            "Saved. Only registered organizations can use the bot now." if on else
+            "Saved. Any organization that installs the bot can use it."))
+
     async def logout(self, request):
         await self._form(request)
         target = "/admin" if self._is_admin(request) else "/settings"
@@ -605,11 +615,31 @@ def admin_body(registry, base_url, notice, error, created) -> str:
         </details>""")
     listing = "".join(rows) or "<p class='muted'>No organizations yet.</p>"
 
+    policy = registry.policy
+    checked = " checked" if policy["registered_only"] else ""
+    state = ("<span class='pill on'>On</span> Only organizations listed here get answers."
+             if policy["registered_only"] else
+             "<span class='pill off'>Off</span> Anyone who installs the bot gets answers from our default AI.")
+    access = card(f"""
+      <h2>Who can use the bot</h2>
+      <p class='status'>{state}</p>
+      <form method='post' action='/admin/policy' class='stack'>
+        <label class='check'><input type='checkbox' name='registered_only'{checked}>
+          Only registered organizations can use the bot</label>
+        <p class='muted small'>Add your own company above before switching this on. Others get a short
+        "not registered" reply and appear under Recently seen. Telegram and WhatsApp are not affected.</p>
+        <label for='contact'>What to tell them <span class='muted small'>finishes the sentence "To start using it, ..."</span></label>
+        <input id='contact' name='contact' maxlength='200' value='{e(policy["contact"])}'
+          placeholder='email sales@inanovai.com'>
+        <div class='row'><button class='primary' type='submit'>Save</button></div>
+      </form>""")
+
     return f"""
     <header class='top'><div><p class='eyebrow'>Inanovai Assistant · Admin</p><h1>Organizations</h1></div>
       <form method='post' action='/logout'><button class='ghost' type='submit'>Sign out</button></form></header>
     {alert(notice, 'good')}{alert(error, 'bad')}
     {created_box}
+    {access}
     {card(f"<h2>All organizations</h2>{listing}")}
     {card('''
       <h2>Add an organization</h2>
@@ -643,6 +673,8 @@ p{margin:0 0 10px}
 .top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
 .stack{display:grid;gap:6px;margin-top:8px}
 label{font-weight:600;font-size:14px;margin-top:8px}
+label.check{display:flex;gap:10px;align-items:center}
+label.check input{width:auto}
 input,select,textarea{font:inherit;padding:10px 12px;border:1px solid #cdd2da;border-radius:8px;width:100%;background:#fff;color:var(--ink)}
 textarea{resize:vertical}
 input:focus,select:focus,textarea:focus,button:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:1px}

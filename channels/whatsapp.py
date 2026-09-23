@@ -89,12 +89,22 @@ class WhatsAppChannel(ChannelBase):
         # Always 200, or Meta retries and eventually disables the webhook.
         return web.Response(text="ok")
 
-    @staticmethod
-    def _messages(body: dict):
-        """Walk Meta's deeply nested payload and yield (message, contact)."""
+    def _messages(self, body: dict):
+        """Walk Meta's deeply nested payload and yield (message, contact).
+
+        A WhatsApp Business account can hold several numbers -- ours may
+        share one with the ERP integration -- and Meta sends every app the
+        messages for all of them. Only messages sent to the bot's own
+        number are answered; everything else is left alone.
+        """
         for entry in body.get("entry", []) or []:
             for change in entry.get("changes", []) or []:
                 value = change.get("value") or {}
+                to_number = (value.get("metadata") or {}).get("phone_number_id")
+                if to_number and str(to_number) != str(self.phone_number_id):
+                    if value.get("messages"):
+                        log.info("ignoring a message sent to another number (%s)", to_number)
+                    continue
                 contacts = value.get("contacts") or []
                 contact = contacts[0] if contacts else {}
                 for message in value.get("messages", []) or []:

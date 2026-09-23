@@ -6,6 +6,10 @@ or several (say an OpenAI key and a Gemini key). When one of their people
 sends a message, the bot answers with THEIR model and THEIR key, and
 never falls back to ours.
 
+The admin page can also switch on "registered only": then a company
+that installed the bot but is not registered here gets a short
+"not registered" reply and no AI is called at all.
+
 How a message is matched to an organization:
 
     Microsoft Teams   teams:<tenant id>        from the Teams activity
@@ -69,6 +73,10 @@ PROVIDERS = {
 
 MAX_MODELS = 10
 MAX_AIS = 10                    # saved AIs (keys) per organization
+
+# Who may use the bot. Off by default, so switching it on is a deliberate
+# step taken after our own company is registered.
+DEFAULT_POLICY = {"registered_only": False, "contact": ""}
 ACCESS_CODE_BYTES = 12          # 16 characters once encoded
 HASH_ITERATIONS = 200_000
 
@@ -279,6 +287,7 @@ class Registry:
         self._lock = threading.Lock()
         self._orgs: dict = {}
         self._codes: dict = {}
+        self._policy: dict = dict(DEFAULT_POLICY)
         self._mtime = None
         # Teams tenants and Google domains that messaged us but are not
         # registered yet, newest first. Shown on the admin page so the team
@@ -298,11 +307,14 @@ class Registry:
             mtime = self.path.stat().st_mtime
         except FileNotFoundError:
             self._orgs, self._codes, self._mtime = {}, {}, None
+            self._policy = dict(DEFAULT_POLICY)
             return
         if mtime == self._mtime:
             return
         with self.path.open(encoding="utf-8") as f:
-            raw = json.load(f).get("orgs", {})
+            doc = json.load(f)
+        raw = doc.get("orgs", {})
+        self._policy = {**DEFAULT_POLICY, **(doc.get("policy") or {})}
         # Access-code hashes are kept off the Org object, so nothing that
         # displays an organization can leak them.
         self._codes = {oid: {k: d[k] for k in ("code_hash", "code_salt") if k in d}
@@ -314,7 +326,8 @@ class Registry:
 
     def _save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        data = {"orgs": {o.id: {"name": o.name, "tenants": o.tenants, "ais": o.ais,
+        data = {"policy": self._policy,
+                "orgs": {o.id: {"name": o.name, "tenants": o.tenants, "ais": o.ais,
                                 "created": o.created, **self._codes.get(o.id, {})}
                          for o in self._orgs.values()}}
         tmp = self.path.with_suffix(".tmp")
@@ -355,6 +368,20 @@ class Registry:
             self.unregistered.appendleft(tenant)
             log.info("message from an unregistered organization: %s", tenant)
         return None
+
+    @property
+    def policy(self) -> dict:
+        """{"registered_only": bool, "contact": str} -- set on the admin page."""
+        with self._lock:
+            self._load()
+            return dict(self._policy)
+
+    def set_policy(self, registered_only: bool, contact: str) -> None:
+        with self._lock:
+            self._load()
+            self._policy = {"registered_only": bool(registered_only),
+                            "contact": (contact or "").strip()[:200]}
+            self._save()
 
     def ais_for(self, org: Org | None) -> list:
         """The organization's own AIs, keys decrypted. Empty = use our default."""

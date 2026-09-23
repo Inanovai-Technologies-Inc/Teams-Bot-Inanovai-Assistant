@@ -119,8 +119,21 @@ async def main():
             check("same-site browser posts are allowed", registry.find("google:browser.test") is not None)
             registry.delete(registry.find("google:browser.test").id)
 
+            r = await c.get("/admin")
+            check("admin page shows the who-can-use switch, off",
+                  "Who can use the bot" in await r.text() and not registry.policy["registered_only"])
+            r = await c.post("/admin/policy", headers=origin,
+                             data={"registered_only": "on", "contact": "email sales@inanovai.com"})
+            check("switching registered-only on is saved",
+                  "Only registered organizations can use the bot now" in await r.text()
+                  and registry.policy == {"registered_only": True, "contact": "email sales@inanovai.com"})
+            r = await c.post("/admin/policy", headers=origin, data={"contact": "x"})
+            check("and off again", not registry.policy["registered_only"])
+
             r = await c.post("/logout", headers=origin)
             check("sign out", r.status == 200)
+            r = await c.post("/admin/policy", headers=origin, data={"registered_only": "on"})
+            check("signed out admin cannot change who can use the bot", not registry.policy["registered_only"])
             r = await c.post("/admin/create", headers=origin, data={"name": "Sneaky"})
             check("signed out admin cannot add organizations",
                   registry.find("google:sneaky.com") is None and len(registry.all()) == 1)

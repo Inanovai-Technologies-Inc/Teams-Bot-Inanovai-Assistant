@@ -256,6 +256,40 @@ async def agent_tests(tmp: Path):
     check("the same model name under two keys can still be picked",
           by_ai[a2].calls[-1]["model"] == "shared")
 
+    print("\n  -- registered only --")
+    guard = HuggingFaceAgent(api_key="fake-default", registry=reg, home_tenants={"teams:home-tenant"})
+    ours2 = FakeClient(reply="from ours")
+    guard.client = ours2
+    guard._org_client = lambda org_id, ai: FakeClient(reply="from theirs")
+
+    answer = await guard.ask("hi", ctx("google:stranger-co.com", "c-s1"))
+    check("off by default: unregistered companies still get answers", answer == "from ours")
+
+    reg.set_policy(True, "email sales@inanovai.com")
+    check("switch is saved in the file", orgs.Registry(reg.path).policy["registered_only"])
+    before = len(ours2.calls)
+    answer = await guard.ask("hi", ctx("google:stranger-co.com", "c-s2"))
+    check("on: unregistered company gets the not-registered reply",
+          "not registered" in answer and "email sales@inanovai.com" in answer, answer)
+    check("and no AI is called for them", len(ours2.calls) == before)
+    answer = await guard.ask("model", ctx("google:stranger-co.com", "c-s2"))
+    check("commands do nothing for them either", "not registered" in answer)
+    check("they show up for the admin to register", "google:stranger-co.com" in reg.unregistered)
+
+    answer = await guard.ask("hi", ctx("teams:plain-tenant", "c-s3"))
+    check("registered company without own AI still uses ours", answer == "from ours")
+    answer = await guard.ask("hi", ctx("google:own.com", "c-s4"))
+    check("registered company with own AI still uses theirs", answer == "from theirs")
+    answer = await guard.ask("hi", ctx("teams:home-tenant", "c-s5"))
+    check("our own company is always allowed", answer == "from ours")
+    answer = await guard.ask("hi", AgentContext(conversation_id="c-s6", extra={"channel": "telegram"}))
+    check("Telegram and WhatsApp are not affected", answer == "from ours")
+
+    reg.set_policy(True, "")
+    answer = await guard.ask("hi", ctx("google:stranger-co.com", "c-s7"))
+    check("a sensible message when no contact is set", "contact Inanovai" in answer, answer)
+    reg.set_policy(False, "")
+
     print("\n  -- every connection is checked, not just the saved address --")
     import httpx2
     guarded = orgs.public_http_client()

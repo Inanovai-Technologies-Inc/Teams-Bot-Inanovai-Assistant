@@ -223,6 +223,20 @@ async def main():
     resp = await wa.handle(FakeRequest({"entry": []}))
     check("survives an empty payload", resp.status == 200)
 
+    # A message to another number on the same WhatsApp account (the ERP's)
+    # must be left alone: no reply, no read receipt, no AI call.
+    before_sent, before_asked = len(sent), len(agent.asked)
+    other = whatsapp_body("hello ERP")
+    other["entry"][0]["changes"][0]["value"]["metadata"] = {"phone_number_id": "999"}
+    resp = await wa.handle(FakeRequest(other))
+    check("ignores messages sent to another number",
+          resp.status == 200 and len(sent) == before_sent and len(agent.asked) == before_asked)
+    mine = whatsapp_body("hello bot")
+    mine["entry"][0]["changes"][0]["value"]["metadata"] = {"phone_number_id": "123"}
+    mine["entry"][0]["changes"][0]["value"]["messages"][0]["id"] = "wamid.for-us"
+    await wa.handle(FakeRequest(mine))
+    check("still answers messages sent to its own number", len(agent.asked) == before_asked + 1)
+
     # bad signature is rejected when a secret is configured
     wa_signed = WhatsAppChannel(FakeAgent(), token="t", phone_number_id="1",
                                 verify_token="v", app_secret="shhh")

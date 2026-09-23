@@ -174,6 +174,8 @@ class Route:
     org_name: str = ""          # set when the organization brought its own AI
     # saved AI id -> connection, when the organization brought its own AI
     clients: Dict[str, Any] = field(default_factory=dict)
+    # set when "registered only" is on and the company is not registered
+    blocked_reply: str = ""
 
     def client_for(self, model) -> Any:
         if self.org_name:
@@ -192,7 +194,7 @@ class HuggingFaceAgent:
     name = "huggingface"
 
     def __init__(self, api_key: str | None = None, registry=None,
-                 allow_private_ai_urls: bool = False):
+                 allow_private_ai_urls: bool = False, home_tenants=()):
         from openai import AsyncOpenAI
 
         token = api_key or os.environ.get("HF_TOKEN", "")
@@ -210,6 +212,8 @@ class HuggingFaceAgent:
         self._org_clients: Dict[tuple, Any] = {}
         # Local testing only: let an organization's AI live on this machine.
         self.allow_private_ai_urls = allow_private_ai_urls
+        # Our own company: always allowed, even with "registered only" on.
+        self.home_tenants = set(home_tenants)
 
         # conversation_id -> recent messages
         self.history: Dict[str, deque] = defaultdict(
@@ -227,6 +231,13 @@ class HuggingFaceAgent:
         tenant = (context.extra or {}).get("tenant", "")
         if self.registry is not None and tenant:
             org = self.registry.find(tenant)
+            if org is None and tenant not in self.home_tenants:
+                policy = self.registry.policy
+                if policy["registered_only"]:
+                    contact = policy["contact"] or "your admin can contact Inanovai to get started"
+                    return Route(catalogue=[], default_key="", client=None, blocked_reply=(
+                        "Your organization is not registered with Inanovai Assistant yet, "
+                        f"so I can't answer here. To start using it, {contact}."))
             ais = self.registry.ais_for(org)
             catalogue = models.org_catalogue(ais)
             if catalogue:
@@ -280,13 +291,17 @@ class HuggingFaceAgent:
 
         lowered = text.lower().lstrip("/")
 
+        route = self.route_for(context)
+        # A company that is not registered gets this and nothing else --
+        # no commands, no memory, and no AI call.
+        if route.blocked_reply:
+            return route.blocked_reply
+
         # `reset` gives the user a way out of a confused conversation.
         if lowered in ("reset", "clear", "forget"):
             self.history.pop(cid, None)
             self.awaiting_choice.discard(cid)
             return "Cleared. Starting fresh."
-
-        route = self.route_for(context)
 
         # Show the menu.
         if lowered in ("model", "models", "model?"):
@@ -405,6 +420,7 @@ def get_agent():
         try:
             agent = HuggingFaceAgent(
                 registry=registry,
+                home_tenants={orgs.teams_tenant(os.environ.get("MICROSOFT_APP_TENANT_ID", "").strip())} - {""},
                 allow_private_ai_urls=(not os.environ.get("WEBSITE_SITE_NAME")
                                        and os.environ.get("ALLOW_PRIVATE_AI_URLS", "") == "1"))
             log.info("Using HuggingFaceAgent (%s models, default: %s)",
