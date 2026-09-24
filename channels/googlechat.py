@@ -280,7 +280,8 @@ class GoogleChatChannel(ChannelBase):
 
         # The sender's email domain says which organization they are from.
         context = self.context_for(space_name, user.get("name"), name,
-                                   tenant=google_tenant(user.get("email", "")))
+                                   tenant=google_tenant(user.get("email", "")),
+                                   email=user.get("email", ""))
         work = asyncio.ensure_future(self.reply_for(text, context))
 
         # Wait, but never past Google's window. asyncio.wait does not cancel

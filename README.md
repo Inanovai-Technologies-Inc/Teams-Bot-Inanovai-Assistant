@@ -101,6 +101,7 @@ another.
 | `channels/telegram.py` | Telegram webhook, typing action, group @mention handling |
 | `channels/whatsapp.py` | Meta Cloud API webhook, verification, signature check, read receipts |
 | `channels/googlechat.py` | Google Chat endpoint, token verification, both event formats |
+| `sandboxes.py` | Who owns which NemoClaw sandbox, and how a person is identified |
 | `orgs.py` | Client organizations, their Teams tenant or Google domain, and their own AI keys (encrypted) |
 | `settings_web.py` | The `/admin` page for our team and the `/settings` page for client admins |
 | `register_channels.py` | Points Telegram at the server. Prints what to paste into Meta for WhatsApp |
@@ -184,6 +185,7 @@ Open <http://localhost:3978/> for a health check.
 | `test_prompt.py` — right app named per channel | 14 | no |
 | `test_orgs.py` — organizations and their own AI | 74 | no |
 | `test_settings.py` — settings and admin pages | 42 | no |
+| `test_sandboxes.py` — one sandbox per person | 24 | no |
 | `test_local.py` — end to end | 9 | yes |
 
 None of them call the real model or touch the network, and none need a key,
@@ -413,6 +415,40 @@ add. The text after "To start using it," is set on the same card.
 - If their AI fails, the person is told why in plain words, for example that
   the key was rejected or the model name was not found. Their question is
   never sent to our AI instead.
+
+## One sandbox per person (NemoClaw)
+
+With `NEMOCLAW_URL` set, each person from a registered organization gets
+their own NemoClaw sandbox: a private workspace where the assistant keeps
+their files and their work, separate from every colleague.
+
+**Who a person is.** Their work email when the chat app gives one
+(`ravi@acme.com`), so Microsoft Teams and Google Chat share one sandbox.
+Teams does not put the email in the message, so `bot.py` looks it up once
+per person and remembers it; if that fails, the person is known by their
+Teams account id instead and simply gets one sandbox per chat app.
+
+**Who gets one.** Only people whose organization is registered on the
+admin page. Everyone else is answered by the ordinary agent, or told they
+are not registered when that switch is on. Telegram and WhatsApp messages
+carry no organization, so they never reach a sandbox.
+
+**What is stored.** `sandboxes.json` in `DATA_DIR`, one line per person:
+their organization, their identity, their sandbox id, when they were last
+seen and how many messages they have sent. No sandbox is ever deleted
+automatically.
+
+**If NemoClaw is down**, people are asked to try again. Their questions
+are never quietly sent to our own models instead.
+
+```
+NEMOCLAW_URL=https://nemoclaw.internal.example
+NEMOCLAW_API_KEY=...
+```
+
+The two calls the bot makes are `POST /sandboxes` (create or find) and
+`POST /sandboxes/{id}/messages` (ask). Point them at the real server in
+`sandboxes.py` once it is running.
 
 ## Adding a channel
 

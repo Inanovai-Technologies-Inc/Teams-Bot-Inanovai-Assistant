@@ -395,15 +395,73 @@ class HuggingFaceAgent:
         return reply
 
 
+
 # ---------------------------------------------------------------------------
-# STAGE 5 -- NemoClaw slots in exactly the same way:
-#
-# class NemoClawAgent:
-#     name = "nemoclaw"
-#
-#     async def ask(self, message: str, context: AgentContext) -> str:
-#         ...  # call NemoClaw, return its text
+# Stage 5 -- NemoClaw, with one sandbox per person.
 # ---------------------------------------------------------------------------
+
+class NemoClawAgent:
+    """Sends each person's message to THEIR own NemoClaw sandbox.
+
+    Who gets a sandbox:
+      - their organization must be registered (see orgs.py)
+      - each person is known by their work email when the chat app gives
+        one, so Teams and Google Chat share one sandbox
+
+    Everyone else is answered by the ordinary agent, or told they are not
+    registered when that switch is on.
+    """
+
+    name = "nemoclaw"
+
+    def __init__(self, client, book, registry=None, fallback=None, home_tenants=()):
+        self.client = client            # NemoClaw server (or a stand-in)
+        self.book = book                # who owns which sandbox
+        self.registry = registry        # organizations
+        self.fallback = fallback        # plain agent for everyone else
+        self.home_tenants = set(home_tenants)
+
+    async def ask(self, message: str, context: AgentContext) -> str:
+        import sandboxes
+
+        text = (message or "").strip()
+        if not text:
+            return "I got an empty message. Try typing something."
+
+        tenant = (context.extra or {}).get("tenant", "")
+        org = self.registry.find(tenant) if (self.registry and tenant) else None
+        person = sandboxes.identify(context, org)
+
+        if person is None:
+            if (self.registry and tenant and tenant not in self.home_tenants
+                    and self.registry.policy["registered_only"]):
+                contact = (self.registry.policy["contact"]
+                           or "your admin can contact Inanovai to get started")
+                return ("Your organization is not registered with Inanovai Assistant yet, "
+                        f"so I can't answer here. To start using it, {contact}.")
+            if self.fallback is not None:
+                return await self.fallback.ask(message, context)
+            return ("I can only answer people from registered organizations. "
+                    "Ask your admin to contact Inanovai.")
+
+        known = self.book.get(person)
+        try:
+            sandbox_id = await self.client.ensure_sandbox(person)
+        except Exception:
+            log.exception("could not reach NemoClaw for %s", person.key)
+            if known is None:
+                return ("I could not open your workspace just now. Please try again in a moment.")
+            sandbox_id = known.sandbox_id
+
+        try:
+            reply = await self.client.ask(sandbox_id, text)
+        except Exception as error:
+            log.warning("NemoClaw failed for %s: %s", person.key, type(error).__name__)
+            return "Your workspace could not answer just now. Please try again in a moment."
+
+        self.book.remember(person, sandbox_id)
+        return reply or "I did not have anything to say to that. Try rephrasing?"
+
 
 
 def get_agent():
@@ -414,17 +472,24 @@ def get_agent():
     Organizations' own AI keys come from orgs.py when ORG_SECRETS_KEY is set.
     """
     import orgs
+    import sandboxes
 
     registry = orgs.get_registry()
+    home = {orgs.teams_tenant(os.environ.get("MICROSOFT_APP_TENANT_ID", "").strip())} - {""}
+    nemoclaw = sandboxes.build_nemoclaw()
     if os.environ.get("HF_TOKEN") or registry.enabled:
         try:
             agent = HuggingFaceAgent(
                 registry=registry,
-                home_tenants={orgs.teams_tenant(os.environ.get("MICROSOFT_APP_TENANT_ID", "").strip())} - {""},
+                home_tenants=home,
                 allow_private_ai_urls=(not os.environ.get("WEBSITE_SITE_NAME")
                                        and os.environ.get("ALLOW_PRIVATE_AI_URLS", "") == "1"))
             log.info("Using HuggingFaceAgent (%s models, default: %s)",
                      len(models.CATALOGUE), models.DEFAULT_KEY)
+            if nemoclaw is not None:
+                log.info("Using NemoClawAgent: one sandbox per person")
+                return NemoClawAgent(nemoclaw, sandboxes.SandboxBook(sandboxes.default_book_path()),
+                                     registry=registry, fallback=agent, home_tenants=home)
             return agent
         except Exception:
             log.exception("Could not start HuggingFaceAgent -- falling back to echo")

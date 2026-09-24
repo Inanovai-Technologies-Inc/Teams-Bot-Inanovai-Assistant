@@ -15,7 +15,7 @@ import logging
 from collections import deque
 
 from botbuilder.core import MessageFactory, TurnContext
-from botbuilder.core.teams import TeamsActivityHandler
+from botbuilder.core.teams import TeamsActivityHandler, TeamsInfo
 from botbuilder.schema import Activity, ActivityTypes, ChannelAccount
 
 from agent import AgentContext, get_agent
@@ -80,7 +80,32 @@ class TeamsBot(TeamsActivityHandler):
         # Teams re-sends a message if we are slow to acknowledge it.
         # Without this the user would get answered twice.
         self._seen_ids: deque = deque(maxlen=SEEN_MESSAGE_LIMIT)
+        # Teams user id -> work email, so it is looked up only once.
+        self._emails: dict = {}
         log.info("Bot started with agent: %s", self.agent.name)
+
+    async def _email_of(self, turn_context: TurnContext) -> str:
+        """The sender's work email, so one person keeps one sandbox.
+
+        Teams does not put it in the message, so it is fetched once per
+        person and remembered. A failure is never fatal: without an email
+        the person is known by their Teams account id instead.
+        """
+        sender = turn_context.activity.from_property
+        user_id = getattr(sender, "id", "") or ""
+        if not user_id:
+            return ""
+        if user_id in self._emails:
+            return self._emails[user_id]
+        email = ""
+        try:
+            member = await TeamsInfo.get_member(turn_context, user_id)
+            email = (getattr(member, "email", "") or
+                     getattr(member, "user_principal_name", "") or "")
+        except Exception:
+            log.debug("could not read the sender's email", exc_info=True)
+        self._emails[user_id] = email
+        return email
 
     def _already_handled(self, activity_id: str | None) -> bool:
         if not activity_id:
@@ -109,7 +134,8 @@ class TeamsBot(TeamsActivityHandler):
             user_name=getattr(sender, "name", None) or "there",
             conversation_id=turn_context.activity.conversation.id,
             extra={"channel": "teams",
-                   "tenant": teams_tenant(tenant_id_of(turn_context.activity))},
+                   "tenant": teams_tenant(tenant_id_of(turn_context.activity)),
+                   "email": await self._email_of(turn_context)},
         )
 
         log.info("[%s] said: %s", context.user_name, incoming)

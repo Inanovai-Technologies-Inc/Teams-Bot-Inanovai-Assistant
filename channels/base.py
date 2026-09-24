@@ -42,7 +42,7 @@ class ChannelBase:
         return False
 
     def context_for(self, chat_id, user_id=None, user_name=None,
-                    tenant: str = "") -> AgentContext:
+                    tenant: str = "", email: str = "") -> AgentContext:
         """Build the agent's context.
 
         The conversation id is prefixed with the channel name so a Telegram
@@ -53,6 +53,8 @@ class ChannelBase:
         extra = {"channel": self.name}
         if tenant:
             extra["tenant"] = tenant
+        if email:
+            extra["email"] = email
         return AgentContext(
             user_id=str(user_id or chat_id),
             user_name=user_name or "there",

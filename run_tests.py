@@ -33,6 +33,7 @@ results = {
     "test_prompt.py (app named in prompt)": run("test_prompt.py"),
     "test_orgs.py (organizations with their own AI)": run("test_orgs.py"),
     "test_settings.py (settings and admin pages)": run("test_settings.py"),
+    "test_sandboxes.py (one sandbox per person)": run("test_sandboxes.py"),
 }
 
 if server_is_up():
